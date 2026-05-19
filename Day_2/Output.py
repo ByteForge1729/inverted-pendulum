@@ -3,6 +3,11 @@ import numpy as np
 import sys
 from cart_pole_dynamics import rk4_step, L_VAL
 
+# add this line right after the existing imports
+import sys
+sys.path.append('../Day_2')
+from lqr_controller import lqr_force
+
 # ── initialise ────────────────────────────────────────────────
 pygame.init()
 
@@ -71,6 +76,7 @@ DT         = 1 / 50        # 50fps physics timestep
 F_MAGNITUDE = 8.0          # Newtons applied per keypress
 current_F   = 0.0
 sim_time    = 0.0
+lqr_on = False
 
 # ── trail + phase history asthetics ──────────────────────────────────────
 trail        = []
@@ -176,6 +182,8 @@ def draw_scene(st, F, t):
     draw_text(screen, f"F     = {F:.1f} N",
               20, 108, colour=FORCE_COL if abs(F)>0.1 else DIM_COL)
 
+    lqr_colour = (93, 202, 165) if lqr_on else DIM_COL
+    draw_text(screen, f"L     LQR  {'ON ✓' if lqr_on else 'OFF'}", 20, HEIGHT-98, colour=lqr_colour)
     draw_text(screen, "← →  apply force",  20, HEIGHT-76, colour=DIM_COL)
     draw_text(screen, "R     reset",        20, HEIGHT-54, colour=DIM_COL)
     draw_text(screen, "Q     quit",         20, HEIGHT-32, colour=DIM_COL)
@@ -214,11 +222,29 @@ while True:
                 phase_hist.clear()
             if event.key == pygame.K_q:
                 pygame.quit(); sys.exit()
+            if event.key == pygame.K_l:
+                lqr_on = not lqr_on
+                trail.clear()
+                phase_hist.clear()
 
     # held keys — checked every frame
     keys = pygame.key.get_pressed()
-    if keys[pygame.K_RIGHT]: current_F =  F_MAGNITUDE
-    if keys[pygame.K_LEFT]:  current_F = -F_MAGNITUDE
+    if lqr_on:
+        # wrap theta into (-π, π) — critical for LQR
+        wrapped_state = state.copy()
+        wrapped_state[2] = (state[2] + np.pi) % (2 * np.pi) - np.pi
+
+        # safety cutoff — LQR only valid near upright
+        if abs(wrapped_state[2]) > np.radians(35):
+            lqr_on = False
+            current_F = 0.0
+        else:
+            # compute force and hard clamp it
+            raw_F = lqr_force(wrapped_state)
+            current_F = np.clip(raw_F, -50.0, 50.0)
+    else:
+        if keys[pygame.K_RIGHT]: current_F =  F_MAGNITUDE
+        if keys[pygame.K_LEFT]:  current_F = -F_MAGNITUDE
 
     # physics step
     state    = rk4_step(state, current_F, DT)
