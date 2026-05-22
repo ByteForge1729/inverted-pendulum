@@ -9,7 +9,7 @@ n  = 4     # states:  [x, x_dot, theta, theta_dot]
 nu = 1     # inputs:  [F]
 
 # ── MPC design parameters ─────────────────────────────────────────────────────
-N  = 20    # prediction horizon (steps)
+N  = 50    # prediction horizon (steps)
 dt = 0.02  # timestep — must match simulation (50 Hz)
 
 MAX_FORCE = 20.0   # hard force limit (N)
@@ -17,7 +17,7 @@ X_LIMIT   = 1.8    # hard cart position limit (m) — tighter than physical wall
 
 # State cost: penalises [x, x_dot, theta, theta_dot] deviations
 # Control cost: penalises large forces
-Q = np.diag([5.0, 0.1, 10.0, 1.0])
+Q = np.diag([0.5, 0.1, 10.0, 1.0])
 R = np.array([[0.01]])
 
 
@@ -106,15 +106,11 @@ _U_prev = np.zeros(N * nu)     # warm-start cache
 
 def mpc_force(state):
     global _U_prev
-    x0 = np.asarray(state, dtype=float)
+    x0 = np.asarray(state, dtype=float).copy()
+    x0[2] = (x0[2] + np.pi) % (2 * np.pi) - np.pi
 
     # Linear term — updates every call
     g = BtQA @ x0
-
-    # State constraint right-hand sides
-    free    = EA @ x0
-    d_upper = X_LIMIT * np.ones(N) - free
-    d_lower = X_LIMIT * np.ones(N) + free
 
     # quadprog format: minimise  0.5 U^T G U - a^T U
     # subject to  C^T U >= b
@@ -128,9 +124,8 @@ def mpc_force(state):
     #   Position lower:  EB U >= -d_lower →  C^T row = +EB, b = -d_lower
 
     I_N = np.eye(N * nu)
-    C_T = np.vstack([ I_N, -I_N, -EB,      EB      ])
-    b   = np.hstack([-MAX_FORCE * np.ones(2 * N * nu),
-                     -d_upper, -d_lower])
+    C_T = np.vstack([ I_N, -I_N])
+    b   = np.hstack([-MAX_FORCE * np.ones(2 * N * nu)])
 
     try:
         U_sol = quadprog.solve_qp(H, -g, C_T.T, b)[0]
@@ -152,4 +147,4 @@ def should_use_mpc(state):
 def mpc_fallback_needed(state):
     _, _, theta, _ = state
     theta_w = (theta + np.pi) % (2 * np.pi) - np.pi
-    return abs(theta_w) > np.radians(35)
+    return abs(theta_w) > np.radians(40)

@@ -49,8 +49,8 @@ X_LIMIT  = 2.0                      # cart travel limit (m from centre)
 k_wall   = MAX_FORCE / X_LIMIT      # = 10.0 N/m
 
 # ── Handoff parameters ────────────────────────────────────────────────────────
-ANGLE_THRESHOLD    = np.radians(25)          # rad  ≈ 25° from upright
-VELOCITY_THRESHOLD = 3.0            # rad/s — pole must be arriving, not flying
+ANGLE_THRESHOLD    = np.radians(30)          # rad  ≈ 30° from upright
+VELOCITY_THRESHOLD = 5.0            # rad/s — pole must be arriving, not flying
 
 # ── Dead-zone threshold ───────────────────────────────────────────────────────
 # Below this |θ̇|, treat as "at rest" and apply a symmetry-breaking kick.
